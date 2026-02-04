@@ -1,0 +1,194 @@
+import React, { useState, useEffect } from 'react';
+
+function Users() {
+  const [users, setUsers] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [editingUser, setEditingUser] = useState(null);
+  const [editForm, setEditForm] = useState({ name: '', email: '', team: '' });
+
+  useEffect(() => {
+    const apiUrl = `https://${process.env.REACT_APP_CODESPACE_NAME}-8000.app.github.dev/api/users/`;
+    const teamsUrl = `https://${process.env.REACT_APP_CODESPACE_NAME}-8000.app.github.dev/api/teams/`;
+    
+    console.log('Users API endpoint:', apiUrl);
+
+    // Fetch users and teams
+    Promise.all([
+      fetch(apiUrl).then(res => res.json()),
+      fetch(teamsUrl).then(res => res.json())
+    ])
+      .then(([usersData, teamsData]) => {
+        console.log('Users fetched data:', usersData);
+        console.log('Teams fetched data:', teamsData);
+        const usersList = usersData.results || usersData;
+        const teamsList = teamsData.results || teamsData;
+        setUsers(usersList);
+        setTeams(teamsList);
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error('Error fetching data:', error);
+        setError(error.message);
+        setLoading(false);
+      });
+  }, []);
+
+  const handleEdit = (user) => {
+    setEditingUser(user._id);
+    setEditForm({ name: user.name, email: user.email, team: user.team || '' });
+  };
+
+  const handleCancel = () => {
+    setEditingUser(null);
+    setEditForm({ name: '', email: '', team: '' });
+  };
+
+  const handleSave = async (userId) => {
+    try {
+      const apiUrl = `https://${process.env.REACT_APP_CODESPACE_NAME}-8000.app.github.dev/api/users/${userId}/`;
+      const response = await fetch(apiUrl, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(editForm),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update user');
+      }
+
+      const updatedUser = await response.json();
+      setUsers(users.map(user => user._id === userId ? updatedUser : user));
+      setEditingUser(null);
+      setEditForm({ name: '', email: '', team: '' });
+    } catch (error) {
+      console.error('Error updating user:', error);
+      alert('Failed to update user: ' + error.message);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="container mt-5">
+        <div className="loading-spinner">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mt-3 text-muted">Loading users...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <div className="container mt-5">
+        <div className="alert alert-danger" role="alert">
+          <h4 className="alert-heading">Error!</h4>
+          <p>{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mt-5">
+      <h1 className="page-title">Users</h1>
+      <div className="card">
+        <div className="card-body">
+          <div className="table-responsive">
+            <table className="table table-striped table-hover mb-0">
+              <thead className="table-dark">
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Team</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.length === 0 ? (
+                  <tr>
+                    <td colSpan="4" className="text-center text-muted py-4">
+                      No users found
+                    </td>
+                  </tr>
+                ) : (
+                  users.map(user => (
+                    <tr key={user._id}>
+                      {editingUser === user._id ? (
+                        <>
+                          <td>
+                            <input
+                              type="text"
+                              className="form-control form-control-sm"
+                              value={editForm.name}
+                              onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="email"
+                              className="form-control form-control-sm"
+                              value={editForm.email}
+                              onChange={(e) => setEditForm({...editForm, email: e.target.value})}
+                            />
+                          </td>
+                          <td>
+                            <select
+                              className="form-select form-select-sm"
+                              value={editForm.team}
+                              onChange={(e) => setEditForm({...editForm, team: e.target.value})}
+                            >
+                              <option value="">No team</option>
+                              {teams.map(team => (
+                                <option key={team._id} value={team.name}>{team.name}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <button
+                              className="btn btn-success btn-sm me-2"
+                              onClick={() => handleSave(user._id)}
+                            >
+                              Save
+                            </button>
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={handleCancel}
+                            >
+                              Cancel
+                            </button>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td><strong>{user.name}</strong></td>
+                          <td>{user.email}</td>
+                          <td>{user.team || 'No team'}</td>
+                          <td>
+                            <button
+                              className="btn btn-primary btn-sm"
+                              onClick={() => handleEdit(user)}
+                            >
+                              Edit
+                            </button>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default Users;
